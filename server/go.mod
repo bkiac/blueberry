@@ -1,4 +1,4 @@
-module github.com/bkiac/blueberry/server/v2
+module github.com/bkiac/blueberry/server
 
 go 1.13
 
