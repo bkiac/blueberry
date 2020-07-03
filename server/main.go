@@ -6,28 +6,31 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
 	_ "github.com/joho/godotenv/autoload"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
+type Register struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type User struct {
+	gorm.Model
+	Username string `gorm:"not_null;unique;index:username"`
+	Password string `gorm:"nut_null"`
+}
+
 func main() {
-	dbURL := os.Getenv("DATABASE")
-	fmt.Println(dbURL)
-	opts, e := pg.ParseURL(dbURL)
+	dsn := os.Getenv("DATABASE")
+	db, e := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if e != nil {
-		panic(e)
-	}
-	db := pg.Connect(opts)
-	defer db.Close()
-	if _, e := db.Exec("SELECT 1"); e != nil {
 		panic(e)
 	}
 	fmt.Println("Database connection established")
-	e = createSchema(db)
-	if e != nil {
-		panic(e)
-	}
+
+	db.AutoMigrate(&User{})
 
 	r := gin.Default()
 
@@ -48,43 +51,14 @@ func main() {
 			Username: body.Username,
 			Password: body.Password,
 		}
-		if e := db.Insert(user); e != nil {
-			c.JSON(http.StatusConflict, gin.H{"error": e.Error()})
-			return
-		}
+		db.Create(user)
+		// if e := db.Create(user); e != nil {
+		// 	c.JSON(http.StatusConflict, gin.H{"error": e.Error()})
+		// 	return
+		// }
 
 		c.JSON(http.StatusOK, user)
 	})
 
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
-}
-
-type Register struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type User struct {
-	ID       int64
-	Username string `pg:",pk,notnull,unique"`
-	Password string `pg:",notnull"`
-}
-
-func (u *User) String() string {
-	return fmt.Sprintf("User<%d, %s>", u.ID, u.Username)
-}
-
-func createSchema(db *pg.DB) error {
-	models := []interface{}{
-		(*User)(nil),
-	}
-	for _, model := range models {
-		e := db.CreateTable(model, &orm.CreateTableOptions{
-			IfNotExists: true,
-		})
-		if e != nil {
-			return e
-		}
-	}
-	return nil
 }
