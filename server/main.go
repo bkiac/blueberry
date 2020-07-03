@@ -1,32 +1,28 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"net/http"
 	"os"
 
+	"github.com/bkiac/blueberry/server/ent"
 	"github.com/gin-gonic/gin"
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
 	_ "github.com/joho/godotenv/autoload"
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	dbURL := os.Getenv("DATABASE")
-	fmt.Println(dbURL)
-	opts, e := pg.ParseURL(dbURL)
+	dsn := os.Getenv("DATABASE")
+	db, e := ent.Open("postgres", dsn)
 	if e != nil {
+		log.Fatalf("Failed to open database: %v", e)
 		panic(e)
 	}
-	db := pg.Connect(opts)
 	defer db.Close()
-	if _, e := db.Exec("SELECT 1"); e != nil {
-		panic(e)
-	}
-	fmt.Println("Database connection established")
-	e = createSchema(db)
-	if e != nil {
-		panic(e)
+	// Migration
+	if e := db.Schema.Create(context.Background()); e != nil {
+		log.Fatalf("Failed to create schema resources: %v", e)
 	}
 
 	r := gin.Default()
@@ -44,11 +40,8 @@ func main() {
 			return
 		}
 
-		user := &User{
-			Username: body.Username,
-			Password: body.Password,
-		}
-		if e := db.Insert(user); e != nil {
+		user, e := CreateUser(c, db, body)
+		if e != nil {
 			c.JSON(http.StatusConflict, gin.H{"error": e.Error()})
 			return
 		}
@@ -59,32 +52,17 @@ func main() {
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
 
+// Register is the validator for registration POST request JSON body.
 type Register struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-type User struct {
-	ID       int64
-	Username string `pg:",pk,notnull,unique"`
-	Password string `pg:",notnull"`
-}
-
-func (u *User) String() string {
-	return fmt.Sprintf("User<%d, %s>", u.ID, u.Username)
-}
-
-func createSchema(db *pg.DB) error {
-	models := []interface{}{
-		(*User)(nil),
+// CreateUser creates a user in the database.
+func CreateUser(c context.Context, db *ent.Client, args Register) (*ent.User, error) {
+	u, e := db.User.Create().SetUsername(args.Username).SetPassword(args.Password).Save(c)
+	if e != nil {
+		return nil, e
 	}
-	for _, model := range models {
-		e := db.CreateTable(model, &orm.CreateTableOptions{
-			IfNotExists: true,
-		})
-		if e != nil {
-			return e
-		}
-	}
-	return nil
+	return u, nil
 }
