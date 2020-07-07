@@ -1,4 +1,7 @@
 .env
 
+*.code-workspace
+*.workspace
+
 server/ent/*
 !server/ent/schema
