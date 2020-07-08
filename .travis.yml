@@ -1,0 +1,20 @@
+os: linux
+dist: xenial
+jobs:
+  include:
+    - language: go
+      go: 1.x
+      env:
+        - GO111MODULE=on
+      cache:
+        directories:
+          - "$HOME/Library/Caches/go-build"
+          - "$HOME/gopath/pkg/mod"
+      before_install:
+        - cd server
+        - bash generate_ent.sh
+      script:
+        - go test
+notifications:
+  email:
+    on_success: never

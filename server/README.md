@@ -1,4 +1,4 @@
 ```bash
-$ go generate ./ent
+$ ./generate_ent.sh
 $ go run main.go
 ```
