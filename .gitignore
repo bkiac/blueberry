@@ -3,5 +3,5 @@
 *.code-workspace
 *.workspace
 
-server/ent/*
-!server/ent/schema
+server/database/ent/**
+!server/database/ent/README.md
